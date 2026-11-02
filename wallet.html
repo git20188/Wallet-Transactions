@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>链上资金隐蔽监控与比对看板</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --border-color: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --warning: #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 12px;
+      line-height: 1.5;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+      gap: 10px;
+    }
+
+    h1 { font-size: 1.25rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .status-badge {
+      font-size: 0.75rem;
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--success);
+      padding: 4px 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+
+    /* 输入区域自适应 */
+    .input-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    @media (min-width: 640px) {
+      .form-group {
+        flex-direction: row;
+      }
+    }
+
+    input[type="text"] {
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text-main);
+      font-size: 0.9rem;
+      outline: none;
+      width: 100%;
+    }
+    input[type="text"]:focus { border-color: var(--primary); }
+    
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .controls {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* 看板网格响应式 */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    @media (min-width: 768px) {
+      .dashboard-grid {
+        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      }
+    }
+
+    .wallet-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .wallet-card.alert {
+      border-color: var(--danger);
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { border-color: var(--danger); }
+      50% { border-color: rgba(239, 68, 68, 0.2); }
+      100% { border-color: var(--danger); }
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .wallet-title-box { display: flex; align-items: center; gap: 6px; }
+    .wallet-title { font-weight: 600; font-size: 1rem; color: var(--text-main); }
+    .edit-memo-btn {
+      background: none;
+      border: none;
+      color: var(--primary);
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+
+    .wallet-address {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      word-break: break-all;
+      font-family: monospace;
+      margin-top: 2px;
+    }
+
+    .alert-tag {
+      display: none;
+      background: var(--danger);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+    .wallet-card.alert .alert-tag { display: inline-block; }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 0 4px;
+    }
+
+    .balance-box {
+      background: var(--bg-color);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-around;
+      text-align: center;
+    }
+
+    .balance-item .label { font-size: 0.7rem; color: var(--text-muted); }
+    .balance-item .val { font-size: 1.1rem; font-weight: 700; margin-top: 2px; }
+    .val.usdt { color: #26a17b; }
+    .val.trx { color: #eb0029; }
+
+    .action-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border-color);
+    }
+
+    .btn-sm {
+      background: none;
+      border: 1px solid var(--border-color);
+      color: var(--primary);
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-sm:hover { background: rgba(59, 130, 246, 0.1); }
+    .btn-official { color: var(--warning); border-color: rgba(245, 158, 11, 0.4); }
+
+    /* 明细折叠区 */
+    .details-container {
+      display: none;
+      margin-top: 12px;
+      background: var(--bg-color);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 0.75rem;
+      border: 1px solid var(--border-color);
+    }
+    .details-container.show { display: block; }
+
+    .tx-item {
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .tx-item:last-child { border-bottom: none; }
+
+    .tx-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2px;
+    }
+
+    .tx-type { font-weight: bold; padding: 1px 4px; border-radius: 3px; font-size: 0.65rem; }
+    .tx-type.in { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+    .tx-type.out { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+
+    .tx-flow {
+      font-family: monospace;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      word-break: break-all;
+      background: rgba(255,255,255,0.02);
+      padding: 4px;
+      border-radius: 4px;
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>🛡️ 链上资金隐蔽监控看板</h1>
+    <div class="status-badge">● 优化只读 API (不打草惊蛇)</div>
+  </header>
+
+  <!-- 输入区 -->
+  <div class="input-card">
+    <div class="form-group">
+      <input type="text" id="walletAddress" placeholder="输入 TRON (T开头) 钱包地址...">
+      <input type="text" id="walletMemo" placeholder="备注名称 (如: 目标地址A)">
+      <button class="btn" onclick="addWallet()">添加监控</button>
+    </div>
+    <div class="controls">
+      <span>轮询间隔: <b>25 秒</b> (带稳定重试与缓存防护)</span>
+      <span style="font-size:0.75rem; color:var(--text-muted);">管理员默认密码: admin123</span>
+    </div>
+  </div>
+
+  <!-- 看板网格 -->
+  <div class="dashboard-grid" id="dashboardGrid"></div>
+</div>
+
+<script>
+  const ADMIN_PASSWORD = "admin123"; // 修改备注需要的管理员密码
+  let monitoredWallets = JSON.parse(localStorage.getItem('monitored_wallets') || '[]');
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderDashboard();
+    fetchAllBalances();
+    setInterval(fetchAllBalances, 25000);
+  });
+
+  function addWallet() {
+    const addressInput = document.getElementById('walletAddress');
+    const memoInput = document.getElementById('walletMemo');
+    const address = addressInput.value.trim();
+    const memo = memoInput.value.trim() || '未命名地址';
+
+    if (!address || !address.startsWith('T')) {
+      alert('请输入有效的 TRON (T开头) 钱包地址');
+      return;
+    }
+
+    if (monitoredWallets.some(w => w.address === address)) {
+      alert('该地址已经在监控列表中！');
+      return;
+    }
+
+    monitoredWallets.push({
+      address: address,
+      memo: memo,
+      lastTrx: '--',
+      lastUsdt: '--',
+      hasAlert: false,
+      lastUpdated: '同步中...',
+      recentTxs: []
+    });
+
+    saveAndRefresh();
+    addressInput.value = '';
+    memoInput.value = '';
+  }
+
+  function removeWallet(address) {
+    monitoredWallets = monitoredWallets.filter(w => w.address !== address);
+    saveAndRefresh();
+  }
+
+  // 管理员验证后修改备注
+  function editMemo(address) {
+    const pwd = prompt("修改备注需管理员验证，请输入管理员密码：");
+    if (pwd === null) return;
+    
+    if (pwd !== ADMIN_PASSWORD) {
+      alert("密码错误，无法修改备注！");
+      return;
+    }
+
+    const wallet = monitoredWallets.find(w => w.address === address);
+    if (wallet) {
+      const newMemo = prompt("请输入新的备注名称：", wallet.memo);
+      if (newMemo && newMemo.trim() !== '') {
+        wallet.memo = newMemo.trim();
+        saveAndRefresh();
+      }
+    }
+  }
+
+  function saveAndRefresh() {
+    localStorage.setItem('monitored_wallets', JSON.stringify(monitoredWallets));
+    renderDashboard();
+    fetchAllBalances();
+  }
+
+  function toggleDetails(address) {
+    const el = document.getElementById(`details-${address}`);
+    if (el) el.classList.toggle('show');
+  }
+
+  function renderDashboard() {
+    const grid = document.getElementById('dashboardGrid');
+    if (monitoredWallets.length === 0) {
+      grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">暂无监控地址，请在上方输入框添加地址</div>`;
+      return;
+    }
+
+    grid.innerHTML = monitoredWallets.map(w => `
+      <div class="wallet-card ${w.hasAlert ? 'alert' : ''}" id="card-${w.address}">
+        <div class="card-header">
+          <div>
+            <div class="wallet-title-box">
+              <span class="wallet-title">${escapeHtml(w.memo)}</span>
+              <button class="edit-memo-btn" onclick="editMemo('${w.address}')" title="修改备注(需密码)">✏️</button>
+            </div>
+            <div class="wallet-address">${w.address}</div>
+            <div class="alert-tag">⚠️ 资金发生划转变动</div>
+          </div>
+          <button class="delete-btn" onclick="removeWallet('${w.address}')" title="移除监控">&times;</button>
+        </div>
+
+        <div class="balance-box">
+          <div class="balance-item">
+            <div class="label">TRC20-USDT 余额</div>
+            <div class="val usdt" id="usdt-${w.address}">${w.lastUsdt}</div>
+          </div>
+          <div class="balance-item">
+            <div class="label">TRX 余额</div>
+            <div class="val trx" id="trx-${w.address}">${w.lastTrx}</div>
+          </div>
+        </div>
+
+        <div id="status-${w.address}" style="font-size: 0.75rem; color: var(--text-muted);">数据同步中...</div>
+
+        <div class="action-bar">
+          <button class="btn-sm" onclick="toggleDetails('${w.address}')">查明细与流向 🔍</button>
+          <!-- 官方权威第三方穿透跳转 -->
+          <a class="btn-sm btn-official" href="https://tronscan.org/#/address/${w.address}" target="_blank" rel="noopener noreferrer">
+            官方 TronScan 穿透比对 ↗
+          </a>
+        </div>
+
+        <!-- 明细区 -->
+        <div class="details-container" id="details-${w.address}">
+          <div style="font-weight:bold; margin-bottom: 6px; color:var(--text-main);">近 5 笔 TRC20-USDT 转账流向：</div>
+          <div id="tx-list-${w.address}">
+            <div style="color: var(--text-muted);">正在读取链上记录...</div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function fetchAllBalances() {
+    for (let wallet of monitoredWallets) {
+      if (wallet.address.startsWith('T')) {
+        await fetchTronDataWithRetry(wallet);
+      }
+    }
+  }
+
+  // 增加重试与防刷机制，解决余额显示为0或变空的问题
+  async function fetchTronDataWithRetry(wallet, retries = 2) {
+    try {
+      // 1. 获取账号详情 (TRX 余额)
+      const accountRes = await fetch(`https://api.trongrid.io/v1/accounts/${wallet.address}`);
+      
+      if (!accountRes.ok && retries > 0) {
+        await new Promise(r => setTimeout(r, 1000));
+        return fetchTronDataWithRetry(wallet, retries - 1);
+      }
+      
+      const accountData = await accountRes.json();
+      let trxBalance = 0;
+      if (accountData.data && accountData.data.length > 0) {
+        trxBalance = (accountData.data[0].balance || 0) / 1000000;
+      }
+
+      // 2. 获取 USDT 余额
+      const tokenRes = await fetch(`https://api.trongrid.io/v1/accounts/${wallet.address}/trc20/balance`);
+      const tokenData = await tokenRes.json();
+      let usdtBalance = 0;
+      if (tokenData.data) {
+        for (let item of tokenData.data) {
+          if (item['TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t']) {
+            usdtBalance = parseFloat(item['TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t']) / 1000000;
+          }
+        }
+      }
+
+      // 3. 获取交易明细
+      const txRes = await fetch(`https://api.trongrid.io/v1/accounts/${wallet.address}/transactions/trc20?limit=5&contract_address=TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`);
+      const txData = await txRes.json();
+      
+      let parsedTxs = [];
+      if (txData.data && Array.isArray(txData.data)) {
+        parsedTxs = txData.data.map(tx => {
+          const isOut = tx.from === wallet.address;
+          const amount = (parseFloat(tx.value) / 1000000).toFixed(2);
+          const time = new Date(tx.block_timestamp).toLocaleString();
+          return {
+            type: isOut ? 'OUT' : 'IN',
+            amount: amount,
+            from: tx.from,
+            to: tx.to,
+            time: time
+          };
+        });
+      }
+
+      const newTrxStr = trxBalance.toFixed(2);
+      const newUsdtStr = usdtBalance.toFixed(2);
+      const nowTime = new Date().toLocaleTimeString();
+
+      // 判断资金异动
+      let isAlert = false;
+      if (wallet.lastUpdated !== '同步中...' && (wallet.lastTrx !== '--' && wallet.lastUsdt !== '--')) {
+        if (newTrxStr !== wallet.lastTrx || newUsdtStr !== wallet.lastUsdt) {
+          isAlert = true;
+        }
+      }
+
+      wallet.lastTrx = newTrxStr;
+      wallet.lastUsdt = newUsdtStr;
+      wallet.lastUpdated = nowTime;
+      wallet.hasAlert = isAlert;
+      wallet.recentTxs = parsedTxs;
+
+      // 更新界面
+      const cardEl = document.getElementById(`card-${wallet.address}`);
+      const trxEl = document.getElementById(`trx-${wallet.address}`);
+      const usdtEl = document.getElementById(`usdt-${wallet.address}`);
+      const statusEl = document.getElementById(`status-${wallet.address}`);
+      const txListEl = document.getElementById(`tx-list-${wallet.address}`);
+
+      if (trxEl) trxEl.innerText = newTrxStr;
+      if (usdtEl) usdtEl.innerText = newUsdtStr;
+
+      if (statusEl) {
+        if (isAlert) {
+          statusEl.innerHTML = `<span style="color: var(--danger); font-weight:bold;">⚠️ 监控到资金发生划转变动！</span>`;
+          cardEl.classList.add('alert');
+        } else {
+          statusEl.innerHTML = `<span style="color: var(--success);">✓ 监控中 (更新于 ${nowTime})</span>`;
+        }
+      }
+
+      if (txListEl) {
+        if (parsedTxs.length === 0) {
+          txListEl.innerHTML = `<div style="color: var(--text-muted);">暂无近期的 TRC20-USDT 转账明细</div>`;
+        } else {
+          txListEl.innerHTML = parsedTxs.map(tx => `
+            <div class="tx-item">
+              <div class="tx-row">
+                <span class="tx-type ${tx.type.toLowerCase()}">${tx.type === 'IN' ? '收入 (+)' : '支出 (-)'}</span>
+                <span style="font-weight:bold; color: ${tx.type === 'IN' ? 'var(--success)' : 'var(--danger)'};">${tx.type === 'IN' ? '+' : '-'}${tx.amount} USDT</span>
+              </div>
+              <div class="tx-flow">
+                <b>流向：</b>${shortAddr(tx.from)} ➔ ${shortAddr(tx.to)}<br>
+                <span style="color:var(--text-muted); font-size:0.65rem;">时间：${tx.time}</span>
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+
+      localStorage.setItem('monitored_wallets', JSON.stringify(monitoredWallets));
+
+    } catch (err) {
+      console.warn("请求频率受限，保持上次真实数值，避免清零:", err);
+      // 请求失败时，保留原先获取到的数值，不重置为0，避免页面闪烁
+      const statusEl = document.getElementById(`status-${wallet.address}`);
+      if (statusEl) statusEl.innerText = "网络节点繁忙，维持上次有效数据";
+    }
+  }
+
+  function shortAddr(addr) {
+    if (!addr) return '';
+    return addr.substring(0, 6) + '...' + addr.substring(addr.length - 6);
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+  }
+</script>
+</body>
+</html>
